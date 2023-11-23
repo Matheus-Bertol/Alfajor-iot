@@ -15,6 +15,6 @@ Projeto de um hub de tomadas controlado por NodeMCU, com autenticação por QR c
 
 # Fotos:
 
-![Frente](img/img1.jpg.png)
+![Frente](img/img1.jpg)
 
-<!-- ![Interno](img/img2.jpg.png) -->
+![Interno](img/img2.jpg)
