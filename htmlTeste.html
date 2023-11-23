@@ -81,6 +81,7 @@
       strong {
         padding-left: 4px;
       }
+      
     </style>
   </head>
   <body>
@@ -104,54 +105,80 @@
         <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg" alt="GitHub" />
       </a>
     </footer>
-    <script>
-      let remainingTime;
-      let intervalId;
-  
-      function startPayment() {
-        const hours = parseInt(document.getElementById('hoursInput').value);
-        const amount = hours * 2; // Valor a ser pago (R$2 por hora)
-  
-        // Simulação do pagamento (aqui você pode implementar a lógica real de pagamento)
-        alert(`Você pagou R$ ${amount.toFixed(2)}. O tempo está contando!`);
-  
-        // Mostrar a tela do temporizador
-        document.getElementById('paymentScreen').style.display = 'none';
-        document.getElementById('timerScreen').style.display = 'block';
-  
-        remainingTime = hours * 60 * 60; // Converter horas em segundos
-        startTimer();
-      }
-  
-      function startTimer() {
-        const timerDisplay = document.getElementById('timer');
-        updateTimerDisplay(timerDisplay);
-  
-        intervalId = setInterval(() => {
-          remainingTime--;
-          updateTimerDisplay(timerDisplay);
-  
-          if (remainingTime <= 0) {
-            clearInterval(intervalId);
-            alert('Tempo acabou! Retornando para a tela de pagamento.');
-            resetPayment();
+      <script>
+    let remainingTime;
+    let intervalId;
+
+    function startPayment() {
+      const hours = parseInt(document.getElementById('hoursInput').value);
+      const amount = hours * 0.5; // Valor a ser pago (R$2 por hora)
+
+      if (isNaN(hours) || hours <= 0) {
+          alert('Por favor, insira um número válido de horas!');
+          return; // Para aqui se o valor for inválido
+        }
+
+      if (!('Notification' in window)) {
+        alert('Este navegador não suporta notificações!');
+      } else if (Notification.permission !== 'granted') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            showNotification('Pagamento Efetuado!', `Você pagou R$ ${amount.toFixed(2)}. O tempo está contando!`);
           }
-        }, 1000);
+        });
+      } else {
+        showNotification('Pagamento Efetuado!', `Você pagou R$ ${amount.toFixed(2)}. O tempo está contando!`);
       }
-  
-      function updateTimerDisplay(displayElement) {
-        const hours = Math.floor(remainingTime / 3600);
-        const minutes = Math.floor((remainingTime % 3600) / 60);
-        const seconds = remainingTime % 60;
-  
-        displayElement.textContent = `Tempo restante: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-      }
-  
-      function resetPayment() {
-        clearInterval(intervalId);
-        document.getElementById('paymentScreen').style.display = 'block';
-        document.getElementById('timerScreen').style.display = 'none';
-      }
-    </script>
+
+      document.getElementById('paymentScreen').style.display = 'none';
+      document.getElementById('timerScreen').style.display = 'block';
+
+      remainingTime = hours * 60 * 60; // Converter horas em segundos
+      startTimer();
+    }
+
+    function startTimer() {
+      const timerDisplay = document.getElementById('timer');
+      updateTimerDisplay(timerDisplay);
+
+      intervalId = setInterval(() => {
+        remainingTime--;
+        updateTimerDisplay(timerDisplay);
+
+        if (remainingTime <= 0) {
+          clearInterval(intervalId);
+          alert('Tempo acabou! Retornando para a tela de pagamento.');
+          resetPayment();
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay(displayElement) {
+      const hours = Math.floor(remainingTime / 3600);
+      const minutes = Math.floor((remainingTime % 3600) / 60);
+      const seconds = remainingTime % 60;
+
+      displayElement.textContent = `Tempo restante: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    function resetPayment() {
+      clearInterval(intervalId);
+      document.getElementById('paymentScreen').style.display = 'block';
+      document.getElementById('timerScreen').style.display = 'none';
+    }
+
+    function showNotification(title, body) {
+      const options = {
+        body: body,
+      };
+
+      const notification = new Notification(title, options);
+    }
+
+    let btnNotification = document.querySelector('.btn-notification');
+    btnNotification.addEventListener("click", startPayment);
+
+    document.addEventListener('visibilitychange', showNotificationVisibility);
+  </script>
   </body>
 </html>

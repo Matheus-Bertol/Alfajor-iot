@@ -124,7 +124,12 @@ void handleRoot() {
 
       function startPayment() {
         const hours = parseInt(document.getElementById('hoursInput').value);
-        const amount = hours * 2; // Valor a ser pago (R$2 por hora)
+        const amount = hours * 0.5; // Valor a ser pago (R$2 por hora)
+
+        if (isNaN(hours) || hours <= 0) {
+          alert('Por favor, insira um número válido de horas!');
+          return; // Para aqui se o valor for inválido
+        }
 
         alert(`Você pagou R$ ${amount.toFixed(2)}. O tempo está contando!`);
 
