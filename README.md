@@ -12,3 +12,7 @@ Bem-vindo ao repositório do Projeto Integrador Extensionista da turma de Sistem
 # Descrição: 
 
 Projeto de um hub de tomadas controlado por NodeMCU, com autenticação por QR code e gerenciamento centralizado via servidor. Os usuários podem solicitar o acesso a tomadas escaneando um QR code, e os administradores têm a capacidade de aprovar ou recusar as solicitações. A tomada é disponibilizada por um tempo limitado, que pode ser definido durante a implementação do projeto, oferecendo uma solução prática e segura para o gerenciamento de dispositivos elétricos.
+
+![Frente](img/img1.jpg.png)
+
+![Interno](img/img2.jpg.png)
