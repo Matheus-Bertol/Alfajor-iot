@@ -1,70 +1,300 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 
-const char* qrcodeScript = "https://cdnjs.cloudflare.com/ajax/libs/jquery.qrcode/1.0/jquery.qrcode.min.js";
-const char* ssid = "Helen";
-const char* password = "1112131415";
+const char* ssid = "GNC";
+const char* password = "gnc81982832";
 ESP8266WebServer server(80);
 const int output5 = 5; // D1
-IPAddress local_IP(192, 168, 1, 115); // Troque o IP
+IPAddress local_IP(192, 168, 1, 169); // Troque o IP
 IPAddress gateway(192, 168, 1, 1);
 IPAddress subnet(255, 255, 255, 0);
 
-bool qrcodeRead = false;
+bool paymentStarted = false;
+unsigned long remainingTime = 0;
+unsigned long endTime = 0;
 
 void handleRoot() {
-  String html = "<!DOCTYPE html><html>";
-  html += "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-  html += "<link rel=\"icon\" href=\"data:,\">";
-  html += "<link rel=\"stylesheet\" type=\"text/css\" href=\"styles.css\">";
-  html += "<script type=\"text/javascript\" src=\"" + String(qrcodeScript) + "\"></script>";
-  html += "<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto;text-align: center;}";
-  html += ".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;";
-  html += "text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}";
-  html += ".button2 {background-color: #77878A;}</style></head>";
-  html += "<body><h1>ESP8266 Web Server</h1>";
-  html += "<h2>Alfajor Iot</h2>";
+  String html = R"=====(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Simulação de Pagamento</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background-color: #f4f4f4;
+    }
 
-  if (qrcodeRead) {
-    html += "<button onclick=\"toggleLED('on')\" class=\"button\">O</button>";
-    html += "<button onclick=\"toggleLED('off')\" class=\"button button2\">OFF</button>";
-  } else {
-    html += "<p>Por favor, faça a leitura do QRCode para ativar as tomadas.</p>";
-  }
+    main {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
 
-  html += "<div id=\"qrcode\"></div>";
-  html += "<script>";
-  html += "function toggleLED(state) {";
-  html += " if (" + String(qrcodeRead) + ") {";
-  html += "   var xhr = new XMLHttpRequest();";
-  html += "   xhr.open('GET', '/5/' + state, true);";
-  html += "   xhr.send();";
-  html += " } else {";
-  html += "   alert('Faça a leitura do QRCode primeiro.');";
-  html += " }";
-  html += "}";
-  html += "jQuery('#qrcode').qrcode({text: window.location.href, width: 200, height: 200});"; // Gera o QRCode com a URL atual
-  html += "</script>";
-  html += "</body></html>";
+    #paymentScreen, #timerScreen {
+      text-align: center;
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    input[type="number"] {
+      width: 50px;
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #3498db;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    #timer {
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    footer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 10px 0;
+      background-color: #ccc;
+      color: #333;
+    }
+
+    footer a {
+      margin-left: 5px;
+      color: #333;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+    }
+
+    footer img {
+      width: 24px;
+      height: 24px;
+      margin-right: 5px;
+    }
+
+    strong {
+      padding-left: 4px;
+    }
+
+    @media screen and (max-width: 600px) {
+      #paymentScreen, #timerScreen {
+        width: 90%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div id="paymentScreen">
+      <h1>Simulação de Pagamento</h1>
+      <label for="hoursInput">Escolha a duração do tempo (em horas):</label>
+      <input type="number" id="hoursInput" min="1" step="1" value="1" aria-label="Escolha a duração do tempo em horas">
+      <button onclick="startPayment()">Pagar</button>
+    </div>
+    <div id="timerScreen" style="display: none;">
+      <h1>Tempo Restante</h1>
+      <p id="timer"></p>
+      <button onclick="cancelPayment()">Cancelar</button> <!-- Botão de Cancelar -->
+    </div>
+  </main>
+  <footer>
+    Desenvolvido por <strong>alfajor-iot</strong>
+    <a href="https://github.com/Matheus-Bertol/Alfajor-iot" target="_blank" rel="noopener noreferrer">
+      <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg" alt="GitHub" />
+    </a>
+  </footer>
+  <script>
+    let remainingTime;
+    let intervalId;
+
+    function startPayment() {
+      const hours = parseInt(document.getElementById('hoursInput').value);
+      const amount = hours * 0.5; // Valor a ser pago (R$2 por hora)
+
+      alert(`Você pagou R$ ${amount.toFixed(2)}. O tempo está contando!`);
+
+      toggleLED('on'); // Ligar o relé quando o pagamento começa
+
+      document.getElementById('paymentScreen').style.display = 'none';
+      document.getElementById('timerScreen').style.display = 'block';
+
+      remainingTime = hours * 60 * 60; // Converter horas em segundos
+      startTimer();
+    }
+
+    function toggleLED(status) {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          console.log("Resposta do servidor: " + this.responseText);
+        }
+      };
+
+      if (status === 'on') {
+        xhttp.open("GET", "/5/on", true);
+      } else if (status === 'off') {
+        xhttp.open("GET", "/5/off", true);
+      }
+      xhttp.send();
+    }
+
+    function startTimer() {
+      const timerDisplay = document.getElementById('timer');
+      updateTimerDisplay(timerDisplay);
+
+      intervalId = setInterval(() => {
+        remainingTime--;
+        updateTimerDisplay(timerDisplay);
+
+        if (remainingTime <= 0) {
+          clearInterval(intervalId);
+          alert('Tempo acabou! Retornando para a tela de pagamento.');
+          toggleLED('off'); // Desligar o relé quando o tempo expirar
+          resetPayment();
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay(displayElement) {
+      const hours = Math.floor(remainingTime / 3600);
+      const minutes = Math.floor((remainingTime % 3600) / 60);
+      const seconds = remainingTime % 60;
+
+      displayElement.textContent = `Tempo restante: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    function resetPayment() {
+      clearInterval(intervalId);
+      document.getElementById('paymentScreen').style.display = 'block';
+      document.getElementById('timerScreen').style.display = 'none';
+    }
+
+    function cancelPayment() {
+      clearInterval(intervalId); // Interrompe o contador de tempo
+      toggleLED('off'); // Desliga o LED
+      alert('Pagamento cancelado!'); // Exibe um alerta informando sobre o cancelamento do pagamento
+      resetPayment(); // Retorna à tela de pagamento
+    }
+  </script>
+</body>
+</html>
+
+  <script>
+    let remainingTime;
+    let intervalId;
+
+    function startPayment() {
+      const hours = parseInt(document.getElementById('hoursInput').value);
+      const amount = hours * 0.5; // Valor a ser pago (R$2 por hora)
+
+      alert(`Você pagou R$ ${amount.toFixed(2)}. O tempo está contando!`);
+
+      toggleLED('on'); // Ligar o LED quando o pagamento começa
+
+      document.getElementById('paymentScreen').style.display = 'none';
+      document.getElementById('timerScreen').style.display = 'block';
+
+      remainingTime = hours * 60 * 60; // Converter horas em segundos
+      startTimer();
+    }
+
+    function toggleLED(status) {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          console.log("Resposta do servidor: " + this.responseText);
+        }
+      };
+
+      if (status === 'on') {
+        xhttp.open("GET", "/5/on", true);
+      } else if (status === 'off') {
+        xhttp.open("GET", "/5/off", true);
+      }
+      xhttp.send();
+    }
+
+    function startTimer() {
+      const timerDisplay = document.getElementById('timer');
+      updateTimerDisplay(timerDisplay);
+
+      intervalId = setInterval(() => {
+        remainingTime--;
+        updateTimerDisplay(timerDisplay);
+
+        if (remainingTime <= 0) {
+          clearInterval(intervalId);
+          alert('Tempo acabou! Retornando para a tela de pagamento.');
+          toggleLED('off'); // Desligar o relé quando o tempo expirar
+          resetPayment();
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay(displayElement) {
+      const hours = Math.floor(remainingTime / 3600);
+      const minutes = Math.floor((remainingTime % 3600) / 60);
+      const seconds = remainingTime % 60;
+
+      displayElement.textContent = `Tempo restante: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    function resetPayment() {
+      clearInterval(intervalId);
+      document.getElementById('paymentScreen').style.display = 'block';
+      document.getElementById('timerScreen').style.display = 'none';
+    }
+
+    function cancelPayment() {
+      clearInterval(intervalId); // Interrompe o contador de tempo
+      toggleLED('off'); // Desliga o relé
+      alert('Pagamento cancelado!'); // Exibe um alerta informando sobre o cancelamento do pagamento
+      resetPayment(); // Retorna à tela de pagamento
+    }
+  </script>
+</body>
+</html>
+
+)=====";
   server.send(200, "text/html", html);
 }
 
 void handleOn() {
-  if (qrcodeRead) {
-    digitalWrite(output5, LOW);
-    server.send(200, "text/plain", "LED Ligado!");
-  } else {
-    server.send(200, "text/plain", "Faça a leitura do QRCode primeiro.");
-  }
+  digitalWrite(output5, LOW); 
+  server.send(200, "text/plain", "RELÉ Ligado!"); 
+  Serial.println("RELÉ ligado");
 }
 
 void handleOff() {
-  if (qrcodeRead) {
-    digitalWrite(output5, HIGH);
-    server.send(200, "text/plain", "LED Desligado!");
-  } else {
-    server.send(200, "text/plain", "Faça a leitura do QRCode primeiro.");
-  }
+  digitalWrite(output5, HIGH); 
+  server.send(200, "text/plain", "RELÉ Desligado!"); 
+  Serial.println("RELÉ ligado");
 }
 
 void setup() {
